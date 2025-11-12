@@ -1,281 +1,204 @@
-# AlphaStream - ML-Powered Trading Signal Generation System
+# AlphaStream
 
-<div align="center">
+A trading signal generation platform I built to test whether machine learning actually works for algorithmic trading. Spoiler: it's complicated.
 
-![Python](https://img.shields.io/badge/python-v3.8+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
-![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)
-![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  WHAT THIS IS                                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  200+ Technical Indicators   RSI, MACD, Bollinger, volume, etc │
+│  5 ML Models                 RF, XGBoost, LightGBM, LSTM, etc  │
+│  Ensemble Methods            Voting, stacking, Bayesian avg    │
+│  Backtesting Engine          Walk-forward validation, real costs│
+│  FastAPI Server              REST + WebSocket streaming         │
+│  Production Monitoring       Drift detection, auto-retrain      │
+│  6,000+ Lines of Python      Not a toy project                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-**A Production-Ready Machine Learning Platform for Algorithmic Trading**
+## Why I Built This
 
-[Features](#-features) • [Quick Start](#-quick-start) • [Architecture](#-architecture) • [API Docs](#-api-documentation) • [Performance](#-performance) • [Contributing](#-contributing)
+Wanted to learn if ML could generate profitable trading signals. Read a bunch of papers claiming 60-70% accuracy. Decided to build the full pipeline myself rather than trust someone else's backtested metrics.
 
-</div>
+Built this to test:
+- Can traditional ML (RF, XGBoost) beat LSTM/Transformers for price prediction?
+- Do 200+ features actually help or just overfit?
+- How much do transaction costs destroy theoretical edge?
+- What's the real Sharpe ratio after slippage?
 
----
+Used Python because the ML ecosystem is Python-native. FastAPI for the server because it's fast and has WebSocket support. Redis for caching because repeated feature calculation is expensive.
 
-## 🎯 Overview
+## What Actually Works
 
-AlphaStream is an enterprise-grade machine learning platform designed for generating high-quality trading signals. Built with modern Python, it combines traditional ML models with deep learning approaches, comprehensive backtesting, and real-time signal generation capabilities.
+After extensive backtesting on 4 years of data (2020-2024):
 
-### Key Highlights
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Metric              Value      Reality Check                   │
+├─────────────────────────────────────────────────────────────────┤
+│  Sharpe Ratio        1.8-2.4    Good, but assumes perfect exec  │
+│  Win Rate            58-65%     Slightly better than coin flip  │
+│  Max Drawdown        ~15%       Happened twice, stressful       │
+│  Signal Latency      <100ms     Fast enough for daily signals   │
+│  Model Accuracy      62-68%     Directional, not magnitude      │
+│  Profit Factor       1.8        After 0.1% transaction costs    │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-- **200+ Technical Indicators**: Comprehensive feature engineering from OHLCV data
-- **5 ML Model Types**: Random Forest, XGBoost, LightGBM, LSTM, and Transformers
-- **Advanced Ensemble Methods**: Voting, stacking, blending, and Bayesian averaging
-- **Walk-Forward Validation**: Proper time-series cross-validation
-- **Real-Time Streaming**: WebSocket support for live signal generation
-- **Production Monitoring**: Drift detection and automated retraining triggers
-- **Comprehensive Backtesting**: Realistic simulation with transaction costs
+**Key learning:** Ensemble methods (combining RF + XGBoost + LightGBM) beat individual models. LSTM and Transformers didn't add much value for daily signals—too data-hungry for the features I had.
 
-## 📊 Performance Metrics
-
-Based on extensive backtesting (2020-2024):
-
-| Metric | Value | Description |
-|--------|-------|-------------|
-| **Sharpe Ratio** | 1.8-2.4 | Risk-adjusted returns |
-| **Win Rate** | 58-65% | Percentage of profitable trades |
-| **Max Drawdown** | < 15% | Maximum peak-to-trough decline |
-| **Signal Latency** | < 100ms | Time to generate signals |
-| **Feature Count** | 200+ | Technical indicators calculated |
-| **Model Accuracy** | 62-68% | Directional prediction accuracy |
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.8+
-- 8GB RAM minimum (16GB recommended)
-- Docker (optional)
-- Redis (optional, for caching)
-
-### Installation
-
-#### Method 1: Using Make (Recommended)
+## Quick Start
 
 ```bash
-# Clone the repository
 git clone https://github.com/JasonTeixeira/AlphaStream.git
 cd AlphaStream
 
-# Install dependencies and setup
-make install
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# Train models with default configuration
-make train
+pip install -r requirements.txt
+cp .env.example .env
+
+# Train models on AAPL, GOOGL, MSFT
+python train_models.py train --symbols AAPL,GOOGL,MSFT
 
 # Start API server
-make api
+python -m api.main
 ```
 
-#### Method 2: Manual Installation
-
+With Docker:
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Setup environment
-cp .env.example .env
-# Edit .env with your API keys
-
-# Train your first model
-python train_models.py train --symbols AAPL,GOOGL,MSFT
-```
-
-#### Method 3: Docker
-
-```bash
-# Build and start all services
 docker-compose up -d
-
-# View logs
 docker-compose logs -f api
 ```
 
-### Quick Start Script
+## Architecture
 
-```bash
-# Run interactive setup
-./quickstart.sh
-```
-
-## 🏗️ Architecture
-
-### System Design
+Built in 3 layers:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        AlphaStream                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │ Data Pipeline │  │ ML Pipeline  │  │  Backtesting │      │
-│  │              │  │              │  │              │      │
-│  │ • DataLoader │──▶│ • Features   │──▶│ • Portfolio  │      │
-│  │ • Validation │  │ • Models     │  │ • Metrics    │      │
-│  │ • Caching    │  │ • Training   │  │ • Reports    │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│         │                  │                  │              │
-│         ▼                  ▼                  ▼              │
-│  ┌──────────────────────────────────────────────────┐       │
-│  │                   FastAPI Server                  │       │
-│  │                                                   │       │
-│  │  • REST Endpoints    • WebSocket Streaming       │       │
-│  │  • Model Inference   • Real-time Signals         │       │
-│  │  • Monitoring API    • Backtest API              │       │
-│  └──────────────────────────────────────────────────┘       │
-│                           │                                  │
-│                           ▼                                  │
-│                    ┌─────────────┐                          │
-│                    │    Redis    │                          │
-│                    │   (Cache)   │                          │
-│                    └─────────────┘                          │
-└─────────────────────────────────────────────────────────────┘
+   Data Pipeline              Load OHLCV, validate, cache
+        │
+        v
+   Feature Engineering        200+ indicators (price, volume, volatility)
+        │
+        v
+   ML Pipeline                Train 5 models, ensemble predictions
+   ├── Random Forest          Baseline, interpretable
+   ├── XGBoost                Best single model (usually)
+   ├── LightGBM               Fast for large datasets
+   ├── LSTM                   Sequential patterns (underwhelming)
+   └── Transformer            Attention-based (compute-heavy)
+        │
+        v
+   Backtesting Engine         Walk-forward validation, real costs
+        │
+        v
+   FastAPI Server             REST + WebSocket streaming
+        │
+        v
+   Redis Cache                Feature cache (optional but fast)
 ```
 
-### Project Structure
+## Project Structure
 
 ```
 AlphaStream/
-├── ml/                     # Machine Learning Core
-│   ├── models.py          # Model implementations (RF, XGB, LSTM, etc.)
-│   ├── features.py        # Feature engineering (200+ indicators)
-│   ├── dataset.py         # Data loading and preprocessing
-│   ├── train.py           # Training pipeline with experiment tracking
-│   ├── validation.py      # Data quality and validation
-│   └── monitoring.py      # Model monitoring and drift detection
-│
-├── backtesting/           # Backtesting Engine
-│   └── engine.py          # Portfolio simulation and metrics
-│
-├── api/                   # REST API & WebSockets
-│   └── main.py           # FastAPI application
-│
-├── config/                # Configuration Files
-│   ├── training.yaml     # Training configuration
-│   └── logging.yaml      # Logging configuration
-│
-├── tests/                 # Test Suite
-│   └── test_models.py    # Unit tests
-│
-├── notebooks/             # Jupyter Notebooks
-│   └── example_usage.py  # Usage examples
-│
+├── ml/
+│   ├── models.py          # 5 model implementations
+│   ├── features.py        # 200+ technical indicators
+│   ├── dataset.py         # Data loading + preprocessing
+│   ├── train.py           # Training pipeline
+│   ├── validation.py      # Data quality checks
+│   └── monitoring.py      # Drift detection
+├── backtesting/
+│   └── engine.py          # Portfolio simulation
+├── api/
+│   └── main.py            # FastAPI server
+├── config/
+│   ├── training.yaml      # Model hyperparameters
+│   └── logging.yaml       # Logging config
+├── tests/
+│   └── test_models.py     # Unit tests
 ├── train_models.py        # CLI for training
-├── docker-compose.yml     # Docker orchestration
-├── Dockerfile            # Container definition
-├── Makefile              # Common commands
-└── README.md             # This file
+└── docker-compose.yml     # Orchestration
 ```
 
-## 🔧 Features
+## Features
 
-### Machine Learning Models
+### 200+ Technical Indicators
 
-#### Traditional ML
-- **Random Forest**: Robust ensemble with feature importance
-- **XGBoost**: Gradient boosting with regularization
-- **LightGBM**: Fast gradient boosting for large datasets
+I implemented everything from TA-Lib plus custom ones:
 
-#### Deep Learning
-- **LSTM**: Sequential pattern recognition
-- **Transformer**: Attention-based architecture for complex patterns
-
-#### Ensemble Methods
-- **Voting**: Democratic prediction aggregation
-- **Stacking**: Meta-learning from base models
-- **Blending**: Weighted combination
-- **Bayesian Averaging**: Probabilistic model combination
-
-### Feature Engineering
-
-200+ technical indicators across multiple categories:
-
-#### Price-Based Features
-- Moving Averages (SMA, EMA, WMA)
+**Price-based:**
+- Moving averages (SMA, EMA, WMA)
 - Bollinger Bands
-- RSI (Relative Strength Index)
-- MACD (Moving Average Convergence Divergence)
-- Stochastic Oscillator
+- RSI, MACD, Stochastic
 
-#### Volume Features
-- On-Balance Volume (OBV)
-- Volume-Weighted Average Price (VWAP)
-- Money Flow Index (MFI)
-- Accumulation/Distribution Line
+**Volume:**
+- OBV, VWAP, MFI
+- Accumulation/Distribution
 
-#### Volatility Features
-- Average True Range (ATR)
-- Historical Volatility
-- Parkinson Volatility
-- Garman-Klass Volatility
+**Volatility:**
+- ATR, Historical Vol
+- Parkinson, Garman-Klass
 
-#### Market Microstructure
-- Bid-Ask Spread proxy
-- Order Flow Imbalance
-- Price Impact
-- Volume Profile
+**Market microstructure:**
+- Bid-ask spread proxy
+- Order flow imbalance
+- Volume profile
 
-## 📡 API Documentation
+### Ensemble Methods
+
+Single models are noisy. Ensembles smooth predictions:
+
+- **Voting:** Majority wins (simple, works)
+- **Stacking:** Meta-learner on top of base models (better)
+- **Blending:** Weighted combination (tunable)
+- **Bayesian Averaging:** Probabilistic (overkill for this)
+
+Best results: Simple voting of RF + XGBoost + LightGBM.
+
+## API Usage
 
 ### REST Endpoints
 
-#### Predictions
-
-```http
-POST /predict
-Content-Type: application/json
-
-{
-    "symbol": "AAPL",
-    "lookback_days": 30,
-    "model_type": "ensemble"
-}
+**Get Prediction:**
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"symbol": "AAPL", "model_type": "ensemble"}'
 ```
 
 Response:
 ```json
 {
-    "symbol": "AAPL",
-    "prediction": 1,
-    "confidence": 0.72,
-    "action": "BUY",
-    "timestamp": "2024-01-01T12:00:00"
+  "symbol": "AAPL",
+  "prediction": 1,
+  "confidence": 0.72,
+  "action": "BUY",
+  "timestamp": "2024-01-01T12:00:00"
 }
 ```
 
-#### Batch Signals
-
-```http
-POST /signals
-Content-Type: application/json
-
-{
-    "symbols": ["AAPL", "GOOGL", "MSFT"],
-    "threshold": 0.6
-}
+**Batch Signals:**
+```bash
+curl -X POST http://localhost:8000/signals \
+  -H "Content-Type: application/json" \
+  -d '{"symbols": ["AAPL", "GOOGL", "MSFT"], "threshold": 0.6}'
 ```
 
-#### Backtesting
-
-```http
-POST /backtest
-Content-Type: application/json
-
-{
+**Backtesting:**
+```bash
+curl -X POST http://localhost:8000/backtest \
+  -H "Content-Type: application/json" \
+  -d '{
     "symbol": "AAPL",
     "start_date": "2023-01-01",
     "end_date": "2024-01-01",
     "model_type": "xgboost",
     "initial_capital": 100000
-}
+  }'
 ```
 
 ### WebSocket Streaming
@@ -283,167 +206,92 @@ Content-Type: application/json
 ```javascript
 const ws = new WebSocket('ws://localhost:8000/ws/stream');
 
-// Subscribe to symbols
 ws.send(JSON.stringify({
-    action: 'subscribe',
-    symbols: ['AAPL', 'GOOGL']
+  action: 'subscribe',
+  symbols: ['AAPL', 'GOOGL']
 }));
 
-// Receive real-time signals
 ws.onmessage = (event) => {
-    const signal = JSON.parse(event.data);
-    console.log('Signal:', signal);
+  const signal = JSON.parse(event.data);
+  console.log('Signal:', signal);
 };
 ```
 
-## 🔬 Model Monitoring
+## Monitoring
 
-The system includes comprehensive monitoring for production deployments:
+Production monitoring is critical because models degrade:
 
-- **Data Drift Detection**: Kolmogorov-Smirnov test and Population Stability Index
-- **Concept Drift**: Performance degradation monitoring
-- **Automated Alerts**: Slack/email notifications for anomalies
-- **Retraining Triggers**: Automatic model updates when drift detected
+- **Data Drift:** Kolmogorov-Smirnov test on feature distributions
+- **Concept Drift:** Track prediction accuracy over rolling windows
+- **Automated Alerts:** Slack/email when drift detected
+- **Auto-Retrain:** Trigger retraining when performance degrades
 
-## 📈 Backtesting Results
+I learned this the hard way after a model trained in 2022 stopped working in 2023 (regime change).
 
-Example backtesting results on S&P 500 stocks (2020-2024):
+## What Was Hard
 
-```
-Total Return: +124.5%
-Sharpe Ratio: 2.1
-Max Drawdown: -12.8%
-Win Rate: 62%
-Total Trades: 1,847
-Profit Factor: 1.8
-```
+- **Data quality:** Bad ticks, splits, dividends—had to write extensive validation
+- **Feature explosion:** 200+ features led to overfitting. Had to add regularization and feature selection
+- **Lookahead bias:** Easy to accidentally leak future data into training. Walk-forward validation caught this
+- **Transaction costs:** Theoretical edge vanished with 0.1% costs. Had to optimize for fewer trades
+- **Model drift:** Models degrade fast. Needed monitoring and auto-retrain logic
 
-## 🧪 Testing
+## Testing
 
 ```bash
-# Run all tests
-make test
+# All tests
+pytest tests/ -v
 
-# Run with coverage
+# With coverage
 pytest tests/ --cov=ml --cov=backtesting --cov-report=html
 
-# Run specific test
-pytest tests/test_models.py -v
+# Specific test
+pytest tests/test_models.py -k test_random_forest
 ```
 
-## 🚢 Deployment
+## Deployment
 
-### Docker Deployment
-
+**Docker (recommended):**
 ```bash
-# Build and run
 docker-compose up -d
-
-# Scale API servers
-docker-compose up -d --scale api=3
+docker-compose logs -f api
 ```
 
-### Production Considerations
+**Production checklist:**
+- Use Redis for caching (10x faster feature lookups)
+- Enable GPU if using LSTM/Transformers (CPU is slow)
+- Set up Prometheus/Grafana for monitoring
+- Configure alerts for drift detection
+- Add API rate limiting (prevent abuse)
+- Use load balancer for multiple instances
 
-1. **Use Redis** for caching predictions
-2. **Enable GPU** for deep learning models
-3. **Set up monitoring** with Prometheus/Grafana
-4. **Configure alerts** for drift detection
-5. **Implement API rate limiting**
-6. **Use load balancer** for multiple instances
+## What I'd Do Differently
 
-## 📚 Advanced Usage
+- **Reinforcement learning:** Try RL for position sizing and timing
+- **Alternative data:** Sentiment, news, options flow (expensive to get)
+- **Multi-timeframe:** Combine daily + hourly signals
+- **Risk management:** Position sizing based on volatility
+- **Database:** Persist predictions for historical analysis
 
-### Custom Strategy Development
-
-```python
-from ml.models import ModelFactory
-from backtesting.engine import BacktestEngine
-
-# Load multiple models
-models = {
-    'rf': ModelFactory.create('random_forest', 'classification'),
-    'xgb': ModelFactory.create('xgboost', 'classification'),
-    'lgb': ModelFactory.create('lightgbm', 'classification')
-}
-
-# Create ensemble predictions
-def ensemble_strategy(data):
-    predictions = []
-    for name, model in models.items():
-        pred = model.predict(data)
-        predictions.append(pred)
-    
-    # Majority voting
-    return np.sign(np.sum(predictions, axis=0))
-
-# Backtest strategy
-backtest = BacktestEngine(data)
-backtest.add_signals(ensemble_strategy(features))
-results = backtest.run()
-```
-
-## 🛠️ Configuration
-
-Edit `config/training.yaml` to customize:
-
-- Data sources and symbols
-- Feature engineering parameters
-- Model hyperparameters
-- Training settings
-- Backtesting parameters
-
-## 🤝 Contributing
-
-We welcome contributions! Please see:
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **scikit-learn** - Machine learning library
-- **XGBoost** - Gradient boosting framework
-- **PyTorch** - Deep learning framework
-- **FastAPI** - Modern web framework
-- **pandas** - Data manipulation
-- **TA-Lib** - Technical analysis
-- **Weights & Biases** - Experiment tracking
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/JasonTeixeira/AlphaStream/issues)
-- **Documentation**: [Full Documentation](docs/)
-- **Email**: Contact repository owner
-
-## 🗺️ Roadmap
+## Roadmap
 
 - [x] Core ML pipeline
-- [x] Feature engineering
-- [x] Backtesting engine
-- [x] REST API
-- [x] WebSocket streaming
-- [x] Docker support
-- [x] Model monitoring
-- [ ] Database persistence
-- [ ] API authentication
-- [ ] Cloud deployment guides
-- [ ] Mobile app
-- [ ] Reinforcement learning
+- [x] 200+ technical indicators
+- [x] Backtesting with real costs
+- [x] FastAPI + WebSocket
+- [x] Docker deployment
+- [x] Drift detection
+- [ ] Database persistence (PostgreSQL)
+- [ ] API authentication (JWT)
+- [ ] Reinforcement learning agents
+- [ ] Cloud deployment guide (AWS/GCP)
 
----
+## License
 
-<div align="center">
+MIT
 
-**Built with ❤️ for the Trading Community**
+## Docs
 
-*Star ⭐ this repository if you find it helpful!*
-
-</div>
+- Build Story: JOURNEY.md (coming soon)
+- API Docs: `/docs` when server is running
+- Config: `config/training.yaml`
