@@ -6,21 +6,32 @@ import { Layers } from "lucide-react"
 import { BacktestConfig } from "@/components/backtester/backtest-config"
 import { BacktestLoading } from "@/components/backtester/backtest-loading"
 import { BacktestResults } from "@/components/backtester/backtest-results"
+import { api, type BacktestResult } from "@/lib/api"
+import { toast } from "sonner"
 
 export default function BacktesterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [compareMode, setCompareMode] = useState(false)
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null)
 
-  const handleRunBacktest = () => {
+  const handleRunBacktest = async (symbols?: string[]) => {
     setIsLoading(true)
     setShowResults(false)
-    
-    // Simulate backtest running
-    setTimeout(() => {
-      setIsLoading(false)
+    setBacktestResult(null)
+
+    try {
+      // Run backtest for the first selected symbol (API handles one at a time)
+      const symbol = symbols?.[0] || "NQ"
+      const result = await api.runBacktest(symbol, "1y", "1h")
+      setBacktestResult(result)
       setShowResults(true)
-    }, 3000)
+    } catch (err) {
+      console.error("Backtest failed:", err)
+      toast.error("Backtest failed. Make sure the API server is running.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -64,7 +75,7 @@ export default function BacktesterPage() {
         
         {isLoading && <BacktestLoading />}
         
-        {showResults && !isLoading && <BacktestResults compareMode={compareMode} />}
+        {showResults && !isLoading && <BacktestResults compareMode={compareMode} result={backtestResult} />}
       </div>
     </div>
   )

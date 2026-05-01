@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -43,8 +43,9 @@ import {
   Cell
 } from "recharts"
 import { cn } from "@/lib/utils"
+import { api, type ModelInfo } from "@/lib/api"
 
-// Mock analytics data
+// Mock analytics data (used as fallback when API is unavailable)
 const equityData = [
   { date: "Jan", equity: 100000, pnl: 0 },
   { date: "Feb", equity: 104500, pnl: 4500 },
@@ -103,6 +104,21 @@ const stats = {
 export default function AnalyticsPage() {
   const [dateRange, setDateRange] = useState("ytd")
   const [selectedSymbol, setSelectedSymbol] = useState("all")
+  const [models, setModels] = useState<ModelInfo[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function fetchModels() {
+      try {
+        const data = await api.getModels()
+        if (!cancelled) setModels(data)
+      } catch (err) {
+        console.error("Failed to fetch model data:", err)
+      }
+    }
+    fetchModels()
+    return () => { cancelled = true }
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#09090B]">
@@ -366,6 +382,52 @@ export default function AnalyticsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Model Performance (real API data) */}
+        {models.length > 0 && (
+          <Card className="bg-[#18181B] border-[#27272A]">
+            <CardHeader>
+              <CardTitle className="text-lg text-[#FAFAFA]">Model Performance</CardTitle>
+              <CardDescription className="text-[#71717A]">Real-time metrics from trained models</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#27272A]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[#71717A]">Model</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[#71717A]">Symbol</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-[#71717A]">Accuracy</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-[#71717A]">AUC</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-[#71717A]">F1</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-[#71717A]">Precision</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-[#71717A]">Recall</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-[#71717A]">Samples</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {models.map((model, idx) => (
+                      <tr key={`${model.symbol}-${model.model_type}-${idx}`} className="border-b border-[#27272A]/50 hover:bg-[#27272A]/30 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-[#FAFAFA]">{model.model_type}</td>
+                        <td className="py-3 px-4 font-mono text-[#A1A1AA]">{model.symbol}</td>
+                        <td className="py-3 px-4 text-right">
+                          <span className={cn("font-mono", model.accuracy >= 0.6 ? "text-success" : model.accuracy >= 0.5 ? "text-warning" : "text-danger")}>
+                            {(model.accuracy * 100).toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-teal">{model.auc.toFixed(3)}</td>
+                        <td className="py-3 px-4 text-right font-mono text-[#FAFAFA]">{model.f1.toFixed(3)}</td>
+                        <td className="py-3 px-4 text-right font-mono text-[#A1A1AA]">{model.precision.toFixed(3)}</td>
+                        <td className="py-3 px-4 text-right font-mono text-[#A1A1AA]">{model.recall.toFixed(3)}</td>
+                        <td className="py-3 px-4 text-right font-mono text-[#71717A]">{model.n_samples.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recent Trades */}
         <Card className="bg-[#18181B] border-[#27272A]">

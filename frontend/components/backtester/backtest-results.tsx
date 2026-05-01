@@ -24,6 +24,7 @@ import {
 } from "recharts"
 import { Download, Save, Share2, ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { type BacktestResult } from "@/lib/api"
 
 // Generate equity curve data
 const generateEquityData = (seed = 1) => {
@@ -115,12 +116,25 @@ const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 
 interface BacktestResultsProps {
   compareMode?: boolean
+  result?: BacktestResult | null
 }
 
-export function BacktestResults({ compareMode = false }: BacktestResultsProps) {
+export function BacktestResults({ compareMode = false, result }: BacktestResultsProps) {
   const [tradeFilter, setTradeFilter] = useState<"all" | "winners" | "losers">("all")
   const [currentPage, setCurrentPage] = useState(1)
   const tradesPerPage = 8
+
+  // Override summary metrics with real API data when available
+  const displayMetrics = result
+    ? [
+        { label: "Total Return", value: `${result.total_return >= 0 ? "+" : ""}${(result.total_return * 100).toFixed(1)}%`, color: result.total_return >= 0 ? "text-success" : "text-danger" },
+        { label: "Sharpe Ratio", value: result.sharpe_ratio.toFixed(2), color: "text-teal" },
+        { label: "Max Drawdown", value: `${(result.max_drawdown * 100).toFixed(1)}%`, color: "text-danger" },
+        { label: "Win Rate", value: `${(result.win_rate * 100).toFixed(1)}%`, color: result.win_rate >= 0.5 ? "text-success" : "text-danger" },
+        { label: "Total Trades", value: String(result.total_signals), color: "text-[#FAFAFA]" },
+        { label: "Avg Win / Loss", value: `${result.avg_win.toFixed(2)} / ${result.avg_loss.toFixed(2)}`, color: "text-success" },
+      ]
+    : metrics
 
   const filteredTrades = trades.filter((trade) => {
     if (tradeFilter === "winners") return trade.pnl.startsWith("+")
@@ -132,7 +146,7 @@ export function BacktestResults({ compareMode = false }: BacktestResultsProps) {
     <div className="space-y-6 animate-fade-in">
       {/* Summary Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {metrics.map((metric) => (
+        {displayMetrics.map((metric) => (
           <Card key={metric.label} className="bg-[#18181B] border-[#27272A]">
             <CardContent className="p-4 text-center">
               <p className={cn("text-2xl font-bold font-mono", metric.color)}>{metric.value}</p>

@@ -20,7 +20,7 @@ const symbols = ["NQ", "ES", "CL", "GC", "BTC", "ETH", "YM", "RTY"]
 const models = ["XGBoost", "LightGBM", "LSTM", "Random Forest", "Ensemble"]
 
 interface BacktestConfigProps {
-  onRun: () => void
+  onRun: (symbols?: string[]) => void
   isLoading: boolean
 }
 
@@ -170,7 +170,7 @@ export function BacktestConfig({ onRun, isLoading }: BacktestConfigProps) {
         {/* Run Button */}
         <div className="mt-8">
           <Button
-            onClick={onRun}
+            onClick={() => onRun(selectedSymbols)}
             disabled={isLoading || selectedSymbols.length === 0 || selectedModels.length === 0}
             className="w-full bg-teal hover:bg-teal/90 text-[#09090B] font-semibold h-12"
           >

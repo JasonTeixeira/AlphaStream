@@ -10,14 +10,35 @@ import { ModelBreakdown } from "@/components/dashboard/model-breakdown"
 import { ActivityFeed } from "@/components/dashboard/activity-feed"
 import { DashboardSkeleton } from "@/components/dashboard/dashboard-skeleton"
 import { GettingStartedChecklist } from "@/components/onboarding/getting-started-checklist"
+import { api, type Signal, type HealthStatus } from "@/lib/api"
 
 export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
+  const [signals, setSignals] = useState<Signal[]>([])
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null)
 
   useEffect(() => {
-    // Simulate initial data loading
-    const timer = setTimeout(() => setIsLoading(false), 1500)
-    return () => clearTimeout(timer)
+    let cancelled = false
+
+    async function fetchData() {
+      try {
+        const [health, signalsData] = await Promise.all([
+          api.health(),
+          api.getSignals(),
+        ])
+        if (!cancelled) {
+          setHealthStatus(health)
+          setSignals(signalsData)
+        }
+      } catch (err) {
+        console.error("Failed to fetch dashboard data:", err)
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+
+    fetchData()
+    return () => { cancelled = true }
   }, [])
 
   if (isLoading) {
@@ -30,9 +51,12 @@ export default function DashboardPage() {
       
       <div className="p-4 md:p-6 space-y-6">
         <GettingStartedChecklist />
-        <PortfolioSummary />
+        <PortfolioSummary
+          activeSignals={signals.length}
+          avgConfidence={signals.length > 0 ? Math.round(signals.reduce((sum, s) => sum + s.confidence, 0) / signals.length * 10) / 10 : undefined}
+        />
         <SignalFilters />
-        <SignalsTable />
+        <SignalsTable signals={signals} />
         
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">

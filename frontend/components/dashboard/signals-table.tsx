@@ -27,11 +27,12 @@ import {
 } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import { 
-  ChevronDown, 
-  ChevronUp, 
-  ArrowUpDown, 
-  Download, 
+import { type Signal as ApiSignal } from "@/lib/api"
+import {
+  ChevronDown,
+  ChevronUp,
+  ArrowUpDown,
+  Download,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
@@ -58,149 +59,52 @@ interface Signal {
   indicators: { name: string; value: string }[]
 }
 
-const signalsData: Signal[] = [
-  { 
-    id: "1",
-    symbol: "NQ", 
-    direction: "LONG", 
-    confidence: 91, 
-    model: "XGBoost", 
-    entryPrice: "18,245.50", 
-    stopLoss: "18,180.00", 
-    takeProfit: "18,375.00", 
-    time: new Date(Date.now() - 1000 * 60 * 2),
-    riskReward: 2.0,
-    indicators: [
-      { name: "RSI", value: "34.2" },
-      { name: "MACD", value: "Bullish Cross" },
-      { name: "Volume", value: "+42% above avg" },
-    ]
-  },
-  { 
-    id: "2",
-    symbol: "ES", 
-    direction: "LONG", 
-    confidence: 84, 
-    model: "Ensemble", 
-    entryPrice: "5,432.75", 
-    stopLoss: "5,410.00", 
-    takeProfit: "5,470.00", 
-    time: new Date(Date.now() - 1000 * 60 * 5),
-    riskReward: 1.6,
-    indicators: [
-      { name: "RSI", value: "42.8" },
-      { name: "MACD", value: "Bullish" },
-      { name: "Volume", value: "+18% above avg" },
-    ]
-  },
-  { 
-    id: "3",
-    symbol: "CL", 
-    direction: "SHORT", 
-    confidence: 88, 
-    model: "LightGBM", 
-    entryPrice: "78.42", 
-    stopLoss: "79.10", 
-    takeProfit: "77.20", 
-    time: new Date(Date.now() - 1000 * 60 * 8),
-    riskReward: 1.8,
-    indicators: [
-      { name: "RSI", value: "72.1" },
-      { name: "MACD", value: "Bearish Cross" },
-      { name: "Volume", value: "+25% above avg" },
-    ]
-  },
-  { 
-    id: "4",
-    symbol: "GC", 
-    direction: "NEUTRAL", 
-    confidence: 51, 
-    model: "LSTM", 
-    entryPrice: "2,345.80", 
-    stopLoss: null, 
-    takeProfit: null, 
-    time: new Date(Date.now() - 1000 * 60 * 12),
-    riskReward: null,
-    indicators: [
-      { name: "RSI", value: "48.5" },
-      { name: "MACD", value: "Neutral" },
-      { name: "Volume", value: "-5% below avg" },
-    ]
-  },
-  { 
-    id: "5",
-    symbol: "BTC", 
-    direction: "LONG", 
-    confidence: 76, 
-    model: "XGBoost", 
-    entryPrice: "67,234.00", 
-    stopLoss: "66,500.00", 
-    takeProfit: "68,100.00", 
-    time: new Date(Date.now() - 1000 * 60 * 15),
-    riskReward: 1.2,
-    indicators: [
-      { name: "RSI", value: "38.9" },
-      { name: "MACD", value: "Bullish" },
-      { name: "Volume", value: "+65% above avg" },
-    ]
-  },
-  { 
-    id: "6",
-    symbol: "ETH", 
-    direction: "SHORT", 
-    confidence: 82, 
-    model: "LightGBM", 
-    entryPrice: "3,456.20", 
-    stopLoss: "3,510.00", 
-    takeProfit: "3,380.00", 
-    time: new Date(Date.now() - 1000 * 60 * 20),
-    riskReward: 1.4,
-    indicators: [
-      { name: "RSI", value: "68.3" },
-      { name: "MACD", value: "Bearish" },
-      { name: "Volume", value: "+32% above avg" },
-    ]
-  },
-  { 
-    id: "7",
-    symbol: "RTY", 
-    direction: "LONG", 
-    confidence: 69, 
-    model: "RandomForest", 
-    entryPrice: "2,087.40", 
-    stopLoss: "2,075.00", 
-    takeProfit: "2,105.00", 
-    time: new Date(Date.now() - 1000 * 60 * 25),
-    riskReward: 1.4,
-    indicators: [
-      { name: "RSI", value: "45.2" },
-      { name: "MACD", value: "Bullish" },
-      { name: "Volume", value: "+12% above avg" },
-    ]
-  },
-  { 
-    id: "8",
-    symbol: "YM", 
-    direction: "NEUTRAL", 
-    confidence: 48, 
-    model: "Ensemble", 
-    entryPrice: "38,942.00", 
-    stopLoss: null, 
-    takeProfit: null, 
-    time: new Date(Date.now() - 1000 * 60 * 30),
-    riskReward: null,
-    indicators: [
-      { name: "RSI", value: "52.1" },
-      { name: "MACD", value: "Neutral" },
-      { name: "Volume", value: "-8% below avg" },
-    ]
-  },
-]
+/** Map API signals to the table's internal display format */
+function mapApiSignals(apiSignals: ApiSignal[]): Signal[] {
+  return apiSignals.map((s) => {
+    const sl = s.stop_loss
+    const tp = s.take_profit
+    const entry = s.entry_price
+    const riskReward = sl && tp && entry
+      ? Math.abs(tp - entry) / Math.abs(entry - sl) || null
+      : null
+
+    // Derive the top model from model_predictions
+    const topModel = Object.entries(s.model_predictions || {}).sort(
+      (a, b) => b[1] - a[1]
+    )[0]
+
+    return {
+      id: s.id,
+      symbol: s.symbol,
+      direction: s.direction,
+      confidence: Math.round(s.confidence * (s.confidence <= 1 ? 100 : 1)),
+      model: topModel ? topModel[0] : "Ensemble",
+      entryPrice: entry.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+      stopLoss: sl ? sl.toLocaleString(undefined, { minimumFractionDigits: 2 }) : null,
+      takeProfit: tp ? tp.toLocaleString(undefined, { minimumFractionDigits: 2 }) : null,
+      time: new Date(s.timestamp),
+      riskReward: riskReward ? Math.round(riskReward * 10) / 10 : null,
+      indicators: Object.entries(s.model_predictions || {}).map(([name, value]) => ({
+        name,
+        value: `${(value * 100).toFixed(1)}%`,
+      })),
+    }
+  })
+}
+
+interface SignalsTableProps {
+  signals?: ApiSignal[]
+}
 
 type SortField = "symbol" | "direction" | "confidence" | "time"
 type SortOrder = "asc" | "desc"
 
-export function SignalsTable() {
+export function SignalsTable({ signals: apiSignals }: SignalsTableProps) {
+  const signalsData = useMemo(
+    () => (apiSignals && apiSignals.length > 0 ? mapApiSignals(apiSignals) : []),
+    [apiSignals]
+  )
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [sortField, setSortField] = useState<SortField>("time")
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc")
@@ -248,7 +152,7 @@ export function SignalsTable() {
       }
       return sortOrder === "asc" ? comparison : -comparison
     })
-  }, [sortField, sortOrder])
+  }, [signalsData, sortField, sortOrder])
 
   const totalPages = Math.ceil(sortedSignals.length / pageSize)
   const paginatedSignals = sortedSignals.slice(
