@@ -54,9 +54,22 @@ const plans = [
     ],
   },
   {
+    id: "starter",
+    name: "Starter",
+    price: 49,
+    icon: Sparkles,
+    features: [
+      "25 signals per day",
+      "5 symbols",
+      "2 API keys",
+      "Email alerts",
+      "Standard support",
+    ],
+  },
+  {
     id: "pro",
     name: "Pro",
-    price: 99,
+    price: 149,
     icon: Sparkles,
     popular: true,
     features: [
@@ -70,9 +83,9 @@ const plans = [
     ],
   },
   {
-    id: "enterprise",
-    name: "Enterprise",
-    price: 499,
+    id: "premium",
+    name: "Premium",
+    price: 299,
     icon: Crown,
     features: [
       "Everything in Pro",
@@ -334,7 +347,7 @@ export default function BillingPage() {
 
       {/* Change Plan Modal */}
       <Dialog open={showChangePlanModal} onOpenChange={setShowChangePlanModal}>
-        <DialogContent className="bg-[#18181B] border-[#27272A] max-w-3xl">
+        <DialogContent className="bg-[#18181B] border-[#27272A] max-w-4xl">
           <DialogHeader>
             <DialogTitle className="text-[#FAFAFA]">Change Your Plan</DialogTitle>
             <DialogDescription>
@@ -342,7 +355,7 @@ export default function BillingPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 py-4">
             {plans.map((plan) => {
               const isCurrentPlan = plan.id === user?.plan
               const Icon = plan.icon

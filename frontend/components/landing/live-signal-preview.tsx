@@ -123,13 +123,10 @@ export function LiveSignalPreview() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="flex items-center justify-center gap-3 mb-12"
+          className="flex flex-col items-center justify-center gap-2 mb-12"
         >
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
-          </span>
-          <h2 className="text-2xl font-bold text-[#FAFAFA]">Live Signal Preview</h2>
+          <h2 className="text-2xl font-bold text-[#FAFAFA]">Signal Preview (Demo)</h2>
+          <p className="text-sm text-[#71717A]">Sample signals shown for demonstration. Real signals available after signup.</p>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -183,7 +183,8 @@ export default function SettingsPage() {
                   <div className="space-y-2">
                     <Label className="text-[#FAFAFA]">Full Name</Label>
                     <Input
-                      defaultValue="Jason Teixeira"
+                      defaultValue=""
+                      placeholder="Your full name"
                       className="bg-[#0A0A0B] border-[#27272A] text-[#FAFAFA]"
                     />
                   </div>
@@ -191,7 +192,8 @@ export default function SettingsPage() {
                     <Label className="text-[#FAFAFA]">Email</Label>
                     <div className="relative">
                       <Input
-                        defaultValue="jason@example.com"
+                        defaultValue=""
+                        placeholder="your@email.com"
                         className="bg-[#0A0A0B] border-[#27272A] text-[#FAFAFA] pr-24"
                       />
                       <Badge className="absolute right-2 top-1/2 -translate-y-1/2 bg-success/20 text-success border-success/30">
@@ -455,7 +457,7 @@ export default function SettingsPage() {
                 </div>
                 {emailAlerts && (
                   <Input
-                    defaultValue="jason@example.com"
+                    defaultValue=""
                     className="bg-[#0A0A0B] border-[#27272A] text-[#FAFAFA]"
                     placeholder="Email address"
                   />

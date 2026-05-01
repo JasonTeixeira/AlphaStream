@@ -21,7 +21,7 @@ from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_sc
 from sklearn.preprocessing import RobustScaler
 
 
-MODELS_DIR = Path("models/trained")
+MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "trained"
 
 
 def walk_forward_split(

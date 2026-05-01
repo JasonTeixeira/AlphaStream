@@ -1,14 +1,16 @@
 "use client"
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react"
+import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase"
+import type { User as SupabaseUser } from "@supabase/supabase-js"
 
 interface User {
   id: string
   name: string
   email: string
   avatar?: string
-  plan: "free" | "pro" | "enterprise"
+  plan: "free" | "starter" | "pro" | "premium"
   emailVerified: boolean
   createdAt: Date
 }
@@ -17,6 +19,7 @@ interface AuthContextType {
   user: User | null
   isLoading: boolean
   isAuthenticated: boolean
+  accessToken: string | null
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   signup: (name: string, email: string, password: string) => Promise<void>
   logout: () => void
@@ -27,114 +30,117 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Demo user for frontend simulation
-const DEMO_USER: User = {
-  id: "usr_demo123",
-  name: "Alex Thompson",
-  email: "alex@example.com",
-  plan: "pro",
-  emailVerified: true,
-  createdAt: new Date("2024-01-15"),
+function mapSupabaseUser(supaUser: SupabaseUser): User {
+  return {
+    id: supaUser.id,
+    name: supaUser.user_metadata?.name || supaUser.email?.split("@")[0] || "",
+    email: supaUser.email || "",
+    avatar: supaUser.user_metadata?.avatar_url,
+    plan: "free",
+    emailVerified: !!supaUser.email_confirmed_at,
+    createdAt: new Date(supaUser.created_at),
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
-
   useEffect(() => {
-    // Check for existing session on mount
-    const checkSession = () => {
-      const savedSession = localStorage.getItem("alphastream_session")
-      if (savedSession) {
-        try {
-          const parsed = JSON.parse(savedSession)
-          setUser({ ...DEMO_USER, ...parsed })
-        } catch {
-          localStorage.removeItem("alphastream_session")
+    // Check current session
+    const getSession = async () => {
+      try {
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          setUser(mapSupabaseUser(session.user))
+          setAccessToken(session.access_token)
+
+          // Fetch plan from profiles table
+          const { data: profile } = await createClient()
+            .from("profiles")
+            .select("plan")
+            .eq("id", session.user.id)
+            .single()
+          if (profile?.plan) {
+            setUser(prev => prev ? { ...prev, plan: profile.plan } : prev)
+          }
         }
+      } catch (e) {
+        console.error("Session check failed:", e)
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
     }
-    checkSession()
+
+    getSession()
+
+    // Listen for auth changes
+    const { data: { subscription } } = createClient().auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(mapSupabaseUser(session.user))
+          setAccessToken(session.access_token)
+        } else {
+          setUser(null)
+          setAccessToken(null)
+        }
+        setIsLoading(false)
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const login = async (email: string, password: string, rememberMe = false) => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    
-    // Demo validation
-    if (password.length < 6) {
+    const { error } = await createClient().auth.signInWithPassword({ email, password })
+    if (error) {
       setIsLoading(false)
-      throw new Error("Invalid credentials")
+      throw new Error(error.message)
     }
-    
-    const userData = { ...DEMO_USER, email }
-    setUser(userData)
-    
-    if (rememberMe) {
-      localStorage.setItem("alphastream_session", JSON.stringify(userData))
-    } else {
-      sessionStorage.setItem("alphastream_session", JSON.stringify(userData))
-    }
-    
-    setIsLoading(false)
     router.push("/dashboard")
   }
 
   const signup = async (name: string, email: string, password: string) => {
     setIsLoading(true)
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    
-    if (password.length < 8) {
-      setIsLoading(false)
-      throw new Error("Password must be at least 8 characters")
-    }
-    
-    const userData: User = {
-      ...DEMO_USER,
-      name,
+    const { error } = await createClient().auth.signUp({
       email,
-      emailVerified: false,
-      plan: "free",
-      createdAt: new Date(),
+      password,
+      options: { data: { name } },
+    })
+    if (error) {
+      setIsLoading(false)
+      throw new Error(error.message)
     }
-    
-    setUser(userData)
-    localStorage.setItem("alphastream_session", JSON.stringify(userData))
-    setIsLoading(false)
     router.push("/auth/verify-email")
   }
 
-  const logout = () => {
+  const logout = async () => {
+    await createClient().auth.signOut()
     setUser(null)
-    localStorage.removeItem("alphastream_session")
-    sessionStorage.removeItem("alphastream_session")
+    setAccessToken(null)
     router.push("/")
   }
 
   const forgotPassword = async (email: string) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    // In production, this would send an email
+    const { error } = await createClient().auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    })
+    if (error) throw new Error(error.message)
   }
 
-  const resetPassword = async (token: string, password: string) => {
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    if (password.length < 8) {
-      throw new Error("Password must be at least 8 characters")
-    }
-    // In production, this would validate token and update password
+  const resetPassword = async (_token: string, password: string) => {
+    const { error } = await createClient().auth.updateUser({ password })
+    if (error) throw new Error(error.message)
+    router.push("/auth/login")
   }
 
   const updateUser = (data: Partial<User>) => {
     if (user) {
-      const updated = { ...user, ...data }
-      setUser(updated)
-      localStorage.setItem("alphastream_session", JSON.stringify(updated))
+      setUser({ ...user, ...data })
     }
   }
 
@@ -144,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         isAuthenticated: !!user,
+        accessToken,
         login,
         signup,
         logout,

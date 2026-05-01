@@ -20,9 +20,9 @@ const features = [
 ]
 
 const metrics = [
-  { name: "Verified Win Rate", alphastream: "73%", competitorA: "Unknown", competitorB: "61%" },
-  { name: "Avg Signal Latency", alphastream: "<50ms", competitorA: "2-5min", competitorB: "1-2min" },
-  { name: "Price (Pro Plan)", alphastream: "$99/mo", competitorA: "$199/mo", competitorB: "$149/mo" },
+  { name: "ML Ensemble Accuracy", alphastream: "~50%", competitorA: "Unknown", competitorB: "Unknown" },
+  { name: "Signal Refresh", alphastream: "Every 5 min", competitorA: "2-5min", competitorB: "1-2min" },
+  { name: "Price (Pro Plan)", alphastream: "$149/mo", competitorA: "$199/mo", competitorB: "$149/mo" },
   { name: "Free Trial", alphastream: "14 days", competitorA: "None", competitorB: "7 days" },
 ]
 
@@ -111,8 +111,8 @@ export function CompetitorComparison() {
               ))}
 
               {/* Metrics header */}
-              <div className="grid grid-cols-4 border-b border-[#27272A] bg-[#0A0A0B]">
-                <div className="p-4" colSpan={4}>
+              <div className="border-b border-[#27272A] bg-[#0A0A0B]">
+                <div className="p-4">
                   <p className="text-sm font-semibold text-[#FAFAFA]">Key Metrics</p>
                 </div>
               </div>
@@ -151,7 +151,7 @@ export function CompetitorComparison() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="text-center text-xs text-[#71717A] mt-6"
         >
-          Comparison based on publicly available information as of April 2025. Competitor names withheld.
+          Comparison based on publicly available information. Competitor names withheld. Accuracy reflects walk-forward validated directional predictions.
         </motion.p>
       </div>
     </section>

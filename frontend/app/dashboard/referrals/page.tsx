@@ -27,8 +27,8 @@ const referralStats = {
   pendingReferrals: 4,
   totalEarnings: 480,
   pendingEarnings: 120,
-  referralCode: "ALPHA-JASON-2024",
-  referralLink: "https://alphastream.io/ref/jason",
+  referralCode: "YOUR-CODE-HERE",
+  referralLink: "https://alphastream-iota.vercel.app/ref/your-code",
 }
 
 const referredUsers = [

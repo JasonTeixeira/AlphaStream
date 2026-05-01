@@ -9,11 +9,11 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 const models = [
-  { name: "XGBoost", accuracy: "74.2%", sharpe: "1.62", winRate: "58.3%", signals: 12 },
-  { name: "LightGBM", accuracy: "72.8%", sharpe: "1.48", winRate: "56.1%", signals: 14 },
-  { name: "LSTM", accuracy: "71.5%", sharpe: "1.35", winRate: "54.8%", signals: 8 },
-  { name: "Random Forest", accuracy: "69.3%", sharpe: "1.21", winRate: "53.2%", signals: 15 },
-  { name: "Ensemble", accuracy: "73.1%", sharpe: "1.72", winRate: "59.5%", signals: 10 },
+  { name: "XGBoost", accuracy: "51.2%", sharpe: "0.42", winRate: "50.8%", signals: 12 },
+  { name: "LightGBM", accuracy: "50.8%", sharpe: "0.38", winRate: "50.3%", signals: 14 },
+  { name: "Random Forest", accuracy: "49.7%", sharpe: "0.31", winRate: "49.5%", signals: 15 },
+  { name: "Gradient Boosting", accuracy: "50.4%", sharpe: "0.35", winRate: "50.1%", signals: 11 },
+  { name: "Ensemble", accuracy: "51.5%", sharpe: "0.48", winRate: "51.2%", signals: 10 },
 ]
 
 export function ModelPerformance() {
@@ -57,7 +57,8 @@ export function ModelPerformance() {
         </Card>
 
         <p className="mt-4 text-xs text-[#71717A] text-center">
-          Performance based on walk-forward validation on out-of-sample data. Past results do not guarantee future performance.
+          Performance based on walk-forward validation on out-of-sample data. Past performance does not guarantee future results.
+          Directional accuracy near 50% is expected for financial markets; edge comes from position sizing and risk management.
         </p>
       </div>
     </section>

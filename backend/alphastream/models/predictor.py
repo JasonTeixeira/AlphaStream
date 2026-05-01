@@ -11,7 +11,7 @@ from loguru import logger
 
 from alphastream.features.engineering import create_features, get_feature_columns
 
-MODELS_DIR = Path("models/trained")
+MODELS_DIR = Path(__file__).parent.parent.parent / "models" / "trained"
 
 MODEL_TYPES = ["xgboost", "lightgbm", "random_forest", "gradient_boosting"]
 

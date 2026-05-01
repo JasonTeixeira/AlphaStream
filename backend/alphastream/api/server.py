@@ -10,13 +10,21 @@ Endpoints:
   GET  /health              — health check
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
+from jose import jwt, JWTError
 from loguru import logger
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from starlette.concurrency import run_in_threadpool
+from supabase import create_client
 
 from alphastream.config.settings import settings
 from alphastream.data.fetcher import SUPPORTED_SYMBOLS, fetch_historical, fetch_latest
@@ -24,17 +32,89 @@ from alphastream.signals.generator import SignalGenerator
 
 # Global signal generator (loaded on startup)
 signal_gen: SignalGenerator | None = None
+supabase_client = None
 cached_signals: list[dict] = []
 last_signal_time: datetime | None = None
+
+# Lock to prevent race conditions on cached_signals
+_signal_lock = asyncio.Lock()
+
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+
+# --- Auth dependency ---
+
+PUBLIC_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+
+
+async def verify_auth(
+    request: Request,
+    authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+):
+    """Validate JWT or API key for protected endpoints."""
+    # Allow public endpoints without auth
+    if request.url.path in PUBLIC_PATHS:
+        return None
+
+    # Skip auth for non-v1 endpoints
+    if not request.url.path.startswith("/v1/"):
+        return None
+
+    # Try JWT first
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ")
+        try:
+            payload = jwt.decode(
+                token,
+                settings.SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                options={"verify_aud": False},
+            )
+            return payload
+        except JWTError as e:
+            logger.warning(f"JWT validation failed: {e}")
+
+    # Fall back to API key
+    if x_api_key:
+        # TODO: validate against stored API keys in supabase
+        return {"api_key": x_api_key}
+
+    raise HTTPException(
+        status_code=401,
+        detail="Missing or invalid authentication. Provide Authorization: Bearer <token> or X-API-Key header.",
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load models on startup."""
-    global signal_gen
+    """Load models and supabase client on startup."""
+    global signal_gen, supabase_client, cached_signals
+
+    # Initialize Supabase client
+    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+        supabase_client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        logger.info("Supabase client initialized")
+
+        # Load last 100 signals from supabase
+        try:
+            result = supabase_client.table("signals").select("*").order(
+                "timestamp", desc=True
+            ).limit(100).execute()
+            if result.data:
+                cached_signals = result.data
+                logger.info(f"Loaded {len(cached_signals)} cached signals from Supabase")
+        except Exception as e:
+            logger.warning(f"Failed to load signals from Supabase: {e}")
+    else:
+        logger.warning("Supabase credentials not configured — signal persistence disabled")
+
+    # Load models
     logger.info("Loading signal generator...")
     signal_gen = SignalGenerator()
     logger.info(f"Loaded {len(signal_gen.predictors)} symbol predictors")
+
     yield
     logger.info("Shutting down")
 
@@ -44,7 +124,11 @@ app = FastAPI(
     version="1.0.0",
     description="ML-powered trading signals for futures markets",
     lifespan=lifespan,
+    dependencies=[Depends(verify_auth)],
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -112,7 +196,9 @@ async def health():
 
 
 @app.get("/v1/signals", response_model=list[SignalResponse])
+@limiter.limit("30/minute")
 async def get_signals(
+    request: Request,
     symbol: str | None = Query(None, description="Filter by symbol"),
     limit: int = Query(20, ge=1, le=100),
 ):
@@ -120,15 +206,23 @@ async def get_signals(
     global cached_signals, last_signal_time
 
     # Refresh signals if stale (older than 5 minutes)
-    now = datetime.now(timezone.utc)
-    if not last_signal_time or (now - last_signal_time).seconds > 300:
-        if signal_gen:
-            new_signals = signal_gen.generate_all()
-            if new_signals:
-                cached_signals = new_signals + cached_signals
-                # Keep last 500 signals
-                cached_signals = cached_signals[:500]
-                last_signal_time = now
+    async with _signal_lock:
+        now = datetime.now(timezone.utc)
+        if not last_signal_time or (now - last_signal_time).total_seconds() > 300:
+            if signal_gen:
+                new_signals = await run_in_threadpool(signal_gen.generate_all)
+                if new_signals:
+                    cached_signals = new_signals + cached_signals
+                    # Keep last 500 signals
+                    cached_signals = cached_signals[:500]
+                    last_signal_time = now
+
+                    # Persist new signals to Supabase
+                    if supabase_client:
+                        try:
+                            supabase_client.table("signals").insert(new_signals).execute()
+                        except Exception as e:
+                            logger.error(f"Failed to persist signals to Supabase: {e}")
 
     results = cached_signals
     if symbol:
@@ -148,7 +242,7 @@ async def get_signal(symbol: str):
     if not signal_gen:
         raise HTTPException(503, "Models not loaded")
 
-    signal = signal_gen.generate_signal(symbol)
+    signal = await run_in_threadpool(signal_gen.generate_signal, symbol)
     if not signal:
         raise HTTPException(404, f"No signal available for {symbol}")
 
@@ -182,7 +276,9 @@ async def get_models():
 
 
 @app.get("/v1/prices/{symbol}")
+@limiter.limit("60/minute")
 async def get_prices(
+    request: Request,
     symbol: str,
     period: str = Query("1mo", description="1d, 5d, 1mo, 3mo, 6mo, 1y, 2y"),
     interval: str = Query("1h", description="1m, 5m, 15m, 1h, 1d"),
@@ -193,7 +289,7 @@ async def get_prices(
     if symbol not in SUPPORTED_SYMBOLS:
         raise HTTPException(404, f"Symbol {symbol} not supported")
 
-    df = fetch_historical(symbol, period=period, interval=interval)
+    df = await run_in_threadpool(fetch_historical, symbol, period, interval)
     if df.empty:
         raise HTTPException(404, f"No data for {symbol}")
 
@@ -205,7 +301,8 @@ async def get_prices(
 
 
 @app.post("/v1/backtest", response_model=BacktestResult)
-async def run_backtest(req: BacktestRequest):
+@limiter.limit("5/minute")
+async def run_backtest(request: Request, req: BacktestRequest):
     """Run a simple backtest on historical data."""
     import numpy as np
 
@@ -217,37 +314,41 @@ async def run_backtest(req: BacktestRequest):
         raise HTTPException(503, f"No models loaded for {symbol}")
 
     # Fetch historical data
-    df = fetch_historical(symbol, period=req.period, interval=req.interval)
+    df = await run_in_threadpool(fetch_historical, symbol, req.period, req.interval)
     if df.empty or len(df) < 200:
         raise HTTPException(400, f"Insufficient data for backtest: {len(df)} bars")
 
     predictor = signal_gen.predictors[symbol]
 
-    # Walk through data generating signals
-    wins = 0
-    losses = 0
-    returns = []
-    window = 200  # minimum bars for features
+    def _run_backtest():
+        wins = 0
+        losses = 0
+        returns = []
+        window = 200  # minimum bars for features
 
-    for i in range(window, len(df) - 5, 5):  # step by 5 bars
-        chunk = df.iloc[i - window : i]
-        signal = predictor.predict(chunk)
-        if not signal or signal["direction"] == "NEUTRAL":
-            continue
+        for i in range(window, len(df) - 5, 5):  # step by 5 bars
+            chunk = df.iloc[i - window : i]
+            signal = predictor.predict(chunk)
+            if not signal or signal["direction"] == "NEUTRAL":
+                continue
 
-        # Check actual outcome (5 bars ahead)
-        entry = df.iloc[i]["close"]
-        exit_price = df.iloc[min(i + 5, len(df) - 1)]["close"]
-        actual_return = (exit_price - entry) / entry
+            # Check actual outcome (5 bars ahead)
+            entry = df.iloc[i]["close"]
+            exit_price = df.iloc[min(i + 5, len(df) - 1)]["close"]
+            actual_return = (exit_price - entry) / entry
 
-        if signal["direction"] == "SHORT":
-            actual_return = -actual_return
+            if signal["direction"] == "SHORT":
+                actual_return = -actual_return
 
-        returns.append(actual_return)
-        if actual_return > 0:
-            wins += 1
-        else:
-            losses += 1
+            returns.append(actual_return)
+            if actual_return > 0:
+                wins += 1
+            else:
+                losses += 1
+
+        return wins, losses, returns
+
+    wins, losses, returns = await run_in_threadpool(_run_backtest)
 
     total = wins + losses
     if total == 0:

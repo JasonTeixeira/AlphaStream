@@ -1,12 +1,12 @@
 "use client"
 
 import { useState } from "react"
-import { Button, ButtonProps } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { Copy, Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
-interface CopyButtonProps extends Omit<ButtonProps, "onClick"> {
+interface CopyButtonProps extends Omit<React.ComponentProps<typeof Button>, "onClick"> {
   value: string
   successMessage?: string
 }

@@ -12,6 +12,8 @@ ZB -> ZB=F (30-Year Treasury Bond)
 RTY -> RTY=F (Russell 2000 E-mini)
 """
 
+import time
+
 import pandas as pd
 import yfinance as yf
 from loguru import logger
@@ -55,10 +57,22 @@ def fetch_historical(
     yf_ticker = SYMBOL_MAP.get(symbol, symbol)
     logger.info(f"Fetching {symbol} ({yf_ticker}) | period={period} interval={interval}")
 
-    df = yf.download(yf_ticker, period=period, interval=interval, progress=False)
+    df = pd.DataFrame()
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            df = yf.download(yf_ticker, period=period, interval=interval, progress=False, timeout=30)
+            if not df.empty:
+                break
+        except Exception as e:
+            logger.warning(f"yfinance attempt {attempt}/{max_retries} failed for {symbol}: {e}")
+        if attempt < max_retries:
+            backoff = 2 ** (attempt - 1)  # 1s, 2s
+            logger.info(f"Retrying in {backoff}s...")
+            time.sleep(backoff)
 
     if df.empty:
-        logger.warning(f"No data returned for {symbol}")
+        logger.warning(f"No data returned for {symbol} after {max_retries} attempts")
         return pd.DataFrame()
 
     # Normalize columns — yfinance 1.x uses MultiIndex columns

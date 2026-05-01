@@ -77,7 +77,7 @@ const activeSessions = [
 ]
 
 const connectedAccounts = [
-  { id: "google", name: "Google", icon: Chrome, connected: true, email: "jason@gmail.com" },
+  { id: "google", name: "Google", icon: Chrome, connected: false, email: null },
   { id: "github", name: "GitHub", icon: Github, connected: false, email: null },
 ]
 
@@ -89,9 +89,9 @@ export default function SecuritySettingsPage() {
   const [showBackupCodes, setShowBackupCodes] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState("")
 
-  // Mock QR code data
-  const qrCodeUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=otpauth://totp/AlphaStream:jason@example.com?secret=JBSWY3DPEHPK3PXP&issuer=AlphaStream"
-  const secretKey = "JBSWY3DPEHPK3PXP"
+  // TODO: generate per-user TOTP secret on the server
+  const qrCodeUrl = "" // Generated server-side with user-specific TOTP secret
+  const secretKey = "" // Generated server-side per user
 
   const handleEnableTwoFactor = () => {
     if (verificationCode.length !== 6) {

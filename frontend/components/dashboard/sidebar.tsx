@@ -105,7 +105,7 @@ export function DashboardSidebar({ collapsed, onToggle }: DashboardSidebarProps)
         )}
         
         <div className={cn("space-y-2", collapsed && "space-y-2")}>
-          {user?.plan !== "enterprise" && (
+          {user?.plan !== "premium" && (
             <Button
               className={cn(
                 "bg-violet hover:bg-violet/90 text-white",

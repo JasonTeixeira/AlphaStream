@@ -28,8 +28,15 @@ export const metadata: Metadata = {
   authors: [{ name: 'AlphaStream' }],
   openGraph: {
     title: 'AlphaStream | ML-Powered Trading Signals',
-    description: 'Trading signals powered by machine learning. 73% accuracy with walk-forward validation.',
+    description: 'Walk-forward validated ML trading signals for futures markets. XGBoost, LightGBM, and ensemble models across 7 markets.',
     type: 'website',
+    url: 'https://alphastream-iota.vercel.app',
+    images: [{ url: '/og-image.png', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'AlphaStream — ML Trading Signals',
+    description: 'Walk-forward validated ML trading signals for futures markets. XGBoost, LightGBM, and ensemble models across 7 markets.',
   },
 }
 
