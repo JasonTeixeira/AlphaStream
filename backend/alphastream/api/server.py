@@ -180,6 +180,7 @@ class BacktestResult(BaseModel):
     win_rate: float
     avg_win: float
     avg_loss: float
+    warning: str | None = None
 
 
 # --- Endpoints ---
@@ -362,6 +363,14 @@ async def run_backtest(request: Request, req: BacktestRequest):
     win_returns = returns_arr[returns_arr > 0]
     loss_returns = returns_arr[returns_arr <= 0]
 
+    # Warn if backtest period overlaps training data
+    warning = None
+    if req.period in ("2y", "5y", "max"):
+        warning = (
+            "Results may include in-sample data. Models were trained on 2 years of history. "
+            "Use period='6mo' or shorter for out-of-sample results."
+        )
+
     return BacktestResult(
         symbol=symbol,
         total_signals=total,
@@ -374,4 +383,105 @@ async def run_backtest(request: Request, req: BacktestRequest):
         win_rate=round(wins / total, 4) if total else 0,
         avg_win=round(float(win_returns.mean()), 4) if len(win_returns) else 0,
         avg_loss=round(float(loss_returns.mean()), 4) if len(loss_returns) else 0,
+        warning=warning,
     )
+
+
+# --- API Key Management ---
+
+class CreateApiKeyRequest(BaseModel):
+    name: str
+
+
+class ApiKeyResponse(BaseModel):
+    key: str
+    key_prefix: str
+    name: str
+    message: str
+
+
+@app.post("/v1/api-keys", response_model=ApiKeyResponse)
+async def create_api_key(req: CreateApiKeyRequest, request: Request):
+    """Generate a secure API key (server-side CSPRNG)."""
+    import hashlib
+    import secrets
+
+    # Generate cryptographically secure key
+    raw_key = f"sk_live_{secrets.token_urlsafe(32)}"
+    key_prefix = raw_key[:12] + "..."
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
+    # Store hash in Supabase (never store raw key)
+    if supabase_client:
+        try:
+            supabase_client.table("api_keys").insert({
+                "key_hash": key_hash,
+                "key_prefix": key_prefix,
+                "name": req.name,
+                "permissions": ["read"],
+                "rate_limit": 1000,
+            }).execute()
+        except Exception as e:
+            logger.error(f"Failed to store API key: {e}")
+
+    return ApiKeyResponse(
+        key=raw_key,
+        key_prefix=key_prefix,
+        name=req.name,
+        message="Store this key securely — it cannot be retrieved again.",
+    )
+
+
+# --- GDPR Data Export/Deletion ---
+
+@app.get("/v1/account/export")
+async def export_user_data(request: Request):
+    """Export all user data (GDPR Article 15)."""
+    if not supabase_client:
+        raise HTTPException(503, "Database not configured")
+
+    # Auth payload should contain user ID
+    auth = request.state.__dict__.get("auth")
+    if not auth or "sub" not in (auth if isinstance(auth, dict) else {}):
+        raise HTTPException(401, "Authentication required")
+
+    user_id = auth["sub"]
+
+    profile = supabase_client.table("profiles").select("*").eq("id", user_id).execute()
+    api_keys = supabase_client.table("api_keys").select("key_prefix, name, created_at").eq("user_id", user_id).execute()
+    watchlists = supabase_client.table("watchlists").select("*").eq("user_id", user_id).execute()
+    alerts = supabase_client.table("alerts").select("*").eq("user_id", user_id).execute()
+
+    return {
+        "profile": profile.data,
+        "api_keys": api_keys.data,
+        "watchlists": watchlists.data,
+        "alerts": alerts.data,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.delete("/v1/account")
+async def delete_user_data(request: Request):
+    """Delete all user data (GDPR Article 17 - Right to Erasure)."""
+    if not supabase_client:
+        raise HTTPException(503, "Database not configured")
+
+    auth = request.state.__dict__.get("auth")
+    if not auth or "sub" not in (auth if isinstance(auth, dict) else {}):
+        raise HTTPException(401, "Authentication required")
+
+    user_id = auth["sub"]
+
+    try:
+        supabase_client.table("api_keys").delete().eq("user_id", user_id).execute()
+        supabase_client.table("watchlists").delete().eq("user_id", user_id).execute()
+        supabase_client.table("alerts").delete().eq("user_id", user_id).execute()
+        supabase_client.table("subscriptions").delete().eq("user_id", user_id).execute()
+        supabase_client.table("profiles").delete().eq("id", user_id).execute()
+        logger.info(f"Deleted all data for user {user_id}")
+    except Exception as e:
+        logger.error(f"Failed to delete user data: {e}")
+        raise HTTPException(500, "Failed to delete user data")
+
+    return {"status": "deleted", "message": "All your data has been permanently removed."}

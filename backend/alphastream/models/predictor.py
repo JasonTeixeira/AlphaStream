@@ -119,7 +119,12 @@ class SignalPredictor:
 
         # Current price
         current_price = float(df.iloc[-1]["close"])
-        atr = float(featured.iloc[-1].get("atr_14", current_price * 0.01))
+        atr_raw = featured.iloc[-1].get("atr_14")
+        if atr_raw is None or np.isnan(atr_raw) or atr_raw <= 0:
+            logger.warning(f"ATR fallback for {self.symbol} — insufficient data for ATR calculation")
+            atr = current_price * 0.005  # Conservative 0.5% fallback
+        else:
+            atr = float(atr_raw)
 
         signal = {
             "symbol": self.symbol,

@@ -167,9 +167,9 @@ def train_pipeline(
         # Aggregate metrics across all walk-forward folds
         fold_metrics = []
 
-        best_model = None
-        best_scaler = None
-        best_auc = -1
+        # Always save the FINAL fold model (most recent data = most relevant)
+        final_model = None
+        final_scaler = None
 
         for fold_idx, (train_idx, val_idx) in enumerate(splits):
             X_train_fold, X_val_fold = X[train_idx], X[val_idx]
@@ -183,10 +183,9 @@ def train_pipeline(
             model, metrics = train_model(model_type, X_train_scaled, y_train_fold, X_val_scaled, y_val_fold)
             fold_metrics.append(metrics)
 
-            if metrics["auc"] > best_auc:
-                best_auc = metrics["auc"]
-                best_model = model
-                best_scaler = scaler
+            # Keep the last fold's model (trained on most data, validated on most recent)
+            final_model = model
+            final_scaler = scaler
 
             logger.info(
                 f"  Fold {fold_idx + 1}: acc={metrics['accuracy']:.4f} "
@@ -205,11 +204,11 @@ def train_pipeline(
             f"auc={avg_metrics['auc']:.4f} f1={avg_metrics['f1']:.4f}"
         )
 
-        # Save best model
+        # Save final fold model (most recent data)
         model_path = output_dir / f"{model_type}.joblib"
         scaler_path = output_dir / f"{model_type}_scaler.joblib"
-        joblib.dump(best_model, model_path)
-        joblib.dump(best_scaler, scaler_path)
+        joblib.dump(final_model, model_path)
+        joblib.dump(final_scaler, scaler_path)
 
         metadata = {
             "model_type": model_type,
