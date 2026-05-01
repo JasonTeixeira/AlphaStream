@@ -1,0 +1,14 @@
+node_modules/
+.next/
+__pycache__/
+*.pyc
+.env
+.env.local
+.venv/
+venv/
+dist/
+*.egg-info/
+backend/models/trained/
+*.joblib
+.DS_Store
+Thumbs.db

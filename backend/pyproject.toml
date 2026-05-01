@@ -1,0 +1,33 @@
+[project]
+name = "alphastream"
+version = "1.0.0"
+description = "ML-powered trading signal system for futures markets"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas==2.2.3",
+    "numpy==1.26.4",
+    "scikit-learn==1.5.2",
+    "xgboost==2.1.3",
+    "lightgbm==4.5.0",
+    "joblib==1.4.2",
+    "yfinance==0.2.50",
+    "fastapi==0.115.6",
+    "uvicorn==0.34.0",
+    "pydantic==2.10.4",
+    "supabase==2.11.0",
+    "python-jose[cryptography]==3.3.0",
+    "httpx==0.28.1",
+    "python-dotenv==1.0.1",
+    "loguru==0.7.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.4", "pytest-asyncio==0.24.0", "ruff==0.8.6"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
